@@ -18,14 +18,21 @@ class RankerNN(nn.Module):
         in_dim = n_features  # Input dimension
         for h in hidden_layers:
             layers.append(nn.Linear(in_dim, h))
-            layers.append(nn.ReLU())
-            if dropout > 0.0:
-                layers.append(nn.Dropout(dropout))
+            layers.append(nn.BatchNorm1d(h))
+            layers.append(nn.GELU())
+            layers.append(nn.Dropout(dropout))
             in_dim = h  # Update input dimension for next layer
 
         layers.append(nn.Linear(in_dim, 1))  # Output layer
 
         self.net: nn.Sequential = nn.Sequential(*layers)
+
+        # weight init
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def forward(self, x: Tensor) -> Tensor:
         """

@@ -39,3 +39,39 @@ def pairwise_loss(scores: torch.Tensor, labels: torch.Tensor, groups: torch.Tens
     if total_pairs == 0:
         return torch.tensor(0.0, device=scores.device)
     return total_loss / total_pairs
+
+
+def groupwise_softmax_loss(scores: torch.Tensor, labels: torch.Tensor, groups: torch.Tensor) -> torch.Tensor:
+    """
+    Group-wise softmax cross-entropy:
+    For each group, softmax over scores and compute CE with one-hot label.
+
+    scores: [N] float
+    labels: [N] float/binary (1=selected, 0=not)
+    groups: [N] int (group ids)
+
+    Returns: scalar loss
+    """
+    total_loss = 0.0
+    total_groups = 0
+
+    unique_groups = torch.unique(groups)
+    for gid in unique_groups:
+        mask = (groups == gid)
+        s = scores[mask]  # [M]
+        y = labels[mask]  # [M]
+
+        if y.sum() == 0:
+            # no positive in this group (should not happen in training)
+            continue
+
+        # softmax over this group's scores
+        log_probs = torch.log_softmax(s, dim=0)  # [M]
+        # Cross entropy with one-hot label
+        loss = - (log_probs * y).sum()  # only selected contributes
+        total_loss += loss
+        total_groups += 1
+
+    if total_groups == 0:
+        return torch.tensor(0.0, device=scores.device)
+    return total_loss / total_groups

@@ -75,3 +75,63 @@ def groupwise_softmax_loss(scores: torch.Tensor, labels: torch.Tensor, groups: t
     if total_groups == 0:
         return torch.tensor(0.0, device=scores.device)
     return total_loss / total_groups
+
+
+# Lambda loss framwork for ranking metric optim
+# https://research.google/pubs/the-lambdaloss-framework-for-ranking-metric-optimization/
+def lambda_loss(scores: torch.Tensor, labels: torch.Tensor, groups: torch.Tensor, sigma: float = 1.0):
+    """
+    LambdaRank-style loss for single-positive-per-group ranking.
+
+    1. Iterates group by group
+      - If find the one item that is actually chosen
+      - It compares the model's score for that chosen item (s_pos) to the scores for every unchosen item (s_neg)
+    2. For each negative item in the group
+      - It asks. Did the model score the chosen item higher than unchosen item?
+      - penalty = log(ep(-sigma * diff)) not sufficient above the unchosen item
+        - s_pos > s_neg => Penalty is near 0. Good
+        - s_pos ~ s_neg => Penalty is larger
+        - s_pos < s_neg => Penalty grows quickly
+    3. Accumulate
+    4. Returns an average penalty across the whole batch
+
+    Args:
+      scores: Tensor: Predicted scores for all items, shape [N].
+      labels: Tensor: Binary relevance labels, shape [N], exactly one `1` per group.
+      groups: Tensor: Group IDs for each item
+      sigma: Slope parameter for logistic loss
+    """
+    device = scores.device
+
+    # Sort by groups to make gathering easier
+    sort_idx = torch.argsort(groups)
+    scores_sorted = scores[sort_idx]
+    labels_sorted = labels[sort_idx]
+    groups_sorted = groups[sort_idx]
+
+    # Identify group boundaries
+    unique_groups, group_counts = torch.unique_consecutive(groups_sorted, return_counts=True)
+    group_offsets = torch.cat([torch.tensor([0], device=device), torch.cumsum(group_counts, dim=0)[:-1]])
+
+    # Build index tensors for positives and negatives
+    losses = []
+    for offset, count in zip(group_offsets, group_counts):
+        s = scores_sorted[offset:offset+count]
+        y = labels_sorted[offset:offset+count]
+
+        pos_mask = (y == 1)
+        if not torch.any(pos_mask):
+            continue
+        # one positive expected
+        s_pos = s[pos_mask][0]  # scalar
+        s_neg = s[~pos_mask]    # [n_neg]
+        if s_neg.numel() == 0:
+            continue
+
+        diff = s_pos - s_neg  # [n_neg]
+        losses.append(torch.log1p(torch.exp(-sigma * diff)))
+
+    if len(losses) == 0:
+        return torch.tensor(0.0, device=device, requires_grad=True)
+    all_losses = torch.cat(losses)  # [total_negatives]
+    return all_losses.mean()

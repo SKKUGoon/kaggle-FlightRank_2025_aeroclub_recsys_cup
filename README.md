@@ -4,7 +4,7 @@
 [![Jupyter Notebook](https://img.shields.io/badge/Jupyter-Notebook-orange.svg)](https://github.com/goonzard/flight-ranking-competition/blob/main/notebooks/001.eda.ipynb)
 [![pytorch](https://img.shields.io/badge/pytorch-1.9.1-EE4C2C.svg)](https://pytorch.org/)
 [![kaggle](https://img.shields.io/badge/kaggle-Flight%20Ranking%20Competition-00B8D9.svg)](https://www.kaggle.com/c/flight-ranking-competition)
-[![python](https://img.shields.io/badge/python-3.8.5-3776AB.svg)](https://www.python.org/)
+[![python](https://img.shields.io/badge/python-3.12.0-3776AB.svg)](https://www.python.org/)
 
 
 ## 📌 Overview
